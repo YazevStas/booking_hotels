@@ -1,0 +1,60 @@
+stages:
+  - lint
+  - test
+  - build
+
+# Общие настройки для Python-задач (lint и test)
+.python:
+  image: python:3.14-slim
+  variables:
+    UV_CACHE_DIR: .uv-cache
+    UV_LINK_MODE: copy
+  cache:
+    key:
+      files:
+        - uv.lock
+    paths:
+      - .uv-cache
+  before_script:
+    - pip install --no-cache-dir uv==0.12.19
+    - uv sync --frozen
+  after_script:
+    - uv cache prune --ci
+
+lint:
+  extends: .python
+  stage: lint
+  script:
+    - uv run ruff check src tests
+
+test:
+  extends: .python
+  stage: test
+  services:
+    - name: postgres:17.6
+      alias: postgres
+    - name: redis:8.10
+      alias: redis
+  variables:
+    # должны совпадать с DB_USER / DB_PASS / DB_NAME в переменной ENV_TEST
+    POSTGRES_USER: test_user
+    POSTGRES_PASSWORD: test_password
+    POSTGRES_DB: test
+  script:
+    - cp "$ENV_TEST" .env-test
+    - uv run pytest
+
+build:
+  # image не указан: используется образ по умолчанию раннера (docker:29.7).
+  # docker build выполняется в Docker хоста через проброшенный docker.sock
+  stage: build
+  script:
+    - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" .
+    # пушим образ в Container Registry проекта только из main
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+        docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+        docker tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" "$CI_REGISTRY_IMAGE:latest"
+        docker push "$CI_REGISTRY_IMAGE:latest"
+      fi
