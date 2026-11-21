@@ -1,9 +1,12 @@
 stages:
-  - lint
-  - test
   - build
+  - lint_format
+  - migrations
+  - test
+  - deploy
 
-# Общие настройки для Python-задач (lint и test)
+
+# Общие настройки для Python-задач (lint_format и test)
 .python:
   image: python:3.14-slim
   variables:
@@ -21,11 +24,62 @@ stages:
   after_script:
     - uv cache prune --ci
 
-lint:
+# Общие настройки для задач, которые работают с продакшен-стеком через docker compose
+.compose:
+  image: docker:29.7
+  variables:
+    # отдельное имя проекта: у продакшена свои volume (pg_data), не общие с локальным запуском
+    COMPOSE_PROJECT_NAME: booking_prod
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  before_script:
+    - cp "$ENV_PROD" .env
+  after_script:
+    - rm -f .env
+
+
+build:
+  # docker build выполняется в Docker хоста через проброшенный docker.sock
+  image: docker:29.7
+  stage: build
+  script:
+    - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" .
+    # пушим образ в Container Registry проекта только из main
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+        docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+        docker tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" "$CI_REGISTRY_IMAGE:latest"
+        docker push "$CI_REGISTRY_IMAGE:latest"
+      fi
+
+
+ruff_check:
   extends: .python
-  stage: lint
+  stage: lint_format
   script:
     - uv run ruff check src tests
+
+ruff_format:
+  extends: .python
+  stage: lint_format
+  script:
+    - uv run ruff format --check src tests
+
+pyright:
+  extends: .python
+  stage: lint_format
+  script:
+    - uv run pyright
+
+
+migrations:
+  extends: .compose
+  stage: migrations
+  script:
+    # поднимает booking_db (ждёт healthcheck), применяет миграции, возвращает код alembic
+    - docker compose run --rm --build booking_migrations
+
 
 test:
   extends: .python
@@ -44,17 +98,10 @@ test:
     - cp "$ENV_TEST" .env-test
     - uv run pytest
 
-build:
-  # image не указан: используется образ по умолчанию раннера (docker:29.7).
-  # docker build выполняется в Docker хоста через проброшенный docker.sock
-  stage: build
+
+deploy:
+  extends: .compose
+  stage: deploy
   script:
-    - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" .
-    # пушим образ в Container Registry проекта только из main
-    - |
-      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
-        echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
-        docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
-        docker tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA" "$CI_REGISTRY_IMAGE:latest"
-        docker push "$CI_REGISTRY_IMAGE:latest"
-      fi
+    - docker compose up -d --build --remove-orphans
+    - docker compose ps

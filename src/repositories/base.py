@@ -19,11 +19,7 @@ class BaseRepository[ModelType: Base, SchemaType: BaseModel]:
         self.session = session
 
     async def get_filtered(self, *filter, **filter_by) -> list[SchemaType]:
-        query = (
-            select(self.model)
-            .filter(*filter)
-            .filter_by(**filter_by)
-        )
+        query = select(self.model).filter(*filter).filter_by(**filter_by)
         result = await self.session.execute(query)
         return [self.mapper.map_to_domain_entity(model) for model in result.scalars().all()]
 
@@ -34,7 +30,7 @@ class BaseRepository[ModelType: Base, SchemaType: BaseModel]:
         query = select(self.model).filter_by(**filter_by)
         result = await self.session.execute(query)
         model = result.scalars().one_or_none()
-        if model: 
+        if model:
             return self.mapper.map_to_domain_entity(model)
         return None
 
@@ -42,11 +38,11 @@ class BaseRepository[ModelType: Base, SchemaType: BaseModel]:
         query = select(self.model).filter_by(**filter_by)
         result = await self.session.execute(query)
         try:
-            model = result.scalar_one() 
+            model = result.scalar_one()
         except NoResultFound:
             raise ObjectNotFoundException from None
         return self.mapper.map_to_domain_entity(model)
-    
+
     async def add(self, data: BaseModel) -> SchemaType:
         try:
             add_stmt = insert(self.model).values(**data.model_dump()).returning(self.model)
@@ -54,15 +50,11 @@ class BaseRepository[ModelType: Base, SchemaType: BaseModel]:
             model = result.scalars().one()
             return self.mapper.map_to_domain_entity(model)
         except IntegrityError as ex:
-            logging.exception(
-                f"Не удалось добавить даннные в БД, входные данные {data}"
-            )
+            logging.exception(f"Не удалось добавить даннные в БД, входные данные {data}")
             if ex.orig is not None and isinstance(ex.orig.__cause__, UniqueViolationError):
                 raise ObjectAlreadyExists from ex
             else:
-                logging.exception(
-                    f"Незнакомая ошибка: yе удалось добавить даннные в БД, входные данные {data}"
-                    )
+                logging.exception(f"Незнакомая ошибка: yе удалось добавить даннные в БД, входные данные {data}")
                 raise ex
 
     async def add_bulk(self, data: Sequence[BaseModel]) -> None:
@@ -70,11 +62,7 @@ class BaseRepository[ModelType: Base, SchemaType: BaseModel]:
         await self.session.execute(add_stmt)
 
     async def edit(self, data: BaseModel, exclude_unset: bool = False, **filter_by) -> None:
-        update_stmt = (
-            update(self.model)
-            .filter_by(**filter_by)
-            .values(**data.model_dump(exclude_unset=exclude_unset))
-        )
+        update_stmt = update(self.model).filter_by(**filter_by).values(**data.model_dump(exclude_unset=exclude_unset))
         await self.session.execute(update_stmt)
 
     async def delete(self, **filter_by) -> None:

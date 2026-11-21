@@ -9,7 +9,9 @@ from httpx import ASGITransport, AsyncClient
 def empty_cache(*args, **kwargs):
     def wrapper(func):
         return func
+
     return wrapper
+
 
 mock.patch("fastapi_cache.decorator.cache", empty_cache).start()
 
@@ -26,16 +28,20 @@ from src.utils.db_manager import DBManager
 def check_mode():
     assert settings.MODE == "TEST"
 
+
 async def get_db_null_pool():
     async with DBManager(session_factory=async_session_maker_null_pool) as db:
         yield db
+
 
 @pytest.fixture(scope="function", autouse=True)
 async def db():
     async for db in get_db_null_pool():
         yield db
 
+
 app.dependency_overrides[get_db] = get_db_null_pool
+
 
 @pytest.fixture(scope="session", autouse=True)
 async def setup_database(check_mode):
@@ -56,32 +62,24 @@ async def setup_database(check_mode):
         await db_.rooms.add_bulk(rooms)
         await db_.commit()
 
+
 @pytest.fixture(scope="session")
 async def ac():
     async with AsyncClient(transport=ASGITransport(app=app), base_url="https://test") as ac:
         yield ac
 
+
 @pytest.fixture(scope="session", autouse=True)
 async def register_user(setup_database, ac):
-    await ac.post(
-        "auth/register",
-        json={
-            "email": "kot@pes.ru",
-            "password": "1234"
-        }
-    )
+    await ac.post("auth/register", json={"email": "kot@pes.ru", "password": "1234"})
+
 
 @pytest.fixture(scope="session")
 async def authenticated_ac(register_user, ac):
-    await ac.post(
-        "auth/login",
-        json={
-            "email": "kot@pes.ru",
-            "password": "1234"
-        }
-    )
+    await ac.post("auth/login", json={"email": "kot@pes.ru", "password": "1234"})
     assert ac.cookies["access_token"]
     yield ac
+
 
 @pytest.fixture(scope="module")
 async def delete_all_bookings():

@@ -4,7 +4,6 @@ from src.services.base import BaseService
 
 
 class BookingService(BaseService):
-
     async def get_bookings(self) -> list[Booking]:
         return await self.db.bookings.get_all()
 

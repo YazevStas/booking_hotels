@@ -8,6 +8,7 @@ from src.database import Base
 if typing.TYPE_CHECKING:
     from src.models.rooms import RoomsORM
 
+
 class FacilitiesORM(Base):
     __tablename__ = "facilities"
 
@@ -15,9 +16,10 @@ class FacilitiesORM(Base):
     title: Mapped[str] = mapped_column(String(100))
 
     rooms: Mapped[list["RoomsORM"]] = relationship(
-            back_populates="facilities",
-            secondary="rooms_facilities",
+        back_populates="facilities",
+        secondary="rooms_facilities",
     )
+
 
 class RoomsFacilitiesORM(Base):
     __tablename__ = "rooms_facilities"
@@ -25,4 +27,3 @@ class RoomsFacilitiesORM(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     room_id: Mapped[int] = mapped_column(ForeignKey("rooms.id"))
     facility_id: Mapped[int] = mapped_column(ForeignKey("facilities.id"))
-

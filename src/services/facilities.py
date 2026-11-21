@@ -3,7 +3,6 @@ from src.services.base import BaseService
 
 
 class FacilityService(BaseService):
-
     async def get_facilities(self) -> list[Facility]:
         return await self.db.facilities.get_all()
 

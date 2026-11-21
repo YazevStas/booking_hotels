@@ -12,12 +12,11 @@ from src.services.hotels import HotelService
 
 
 class RoomService(BaseService):
-
     async def get_filtered_by_time(
-            self,
-            hotel_id: int,
-            date_from: date,
-            date_to: date,
+        self,
+        hotel_id: int,
+        date_from: date,
+        date_to: date,
     ) -> list[RoomWithRels]:
         date_to_after_date_from(date_from, date_to)
         return await self.db.rooms.get_filtered_by_time(hotel_id=hotel_id, date_from=date_from, date_to=date_to)

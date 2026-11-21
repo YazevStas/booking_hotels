@@ -7,14 +7,13 @@ from src.services.base import BaseService
 
 
 class HotelService(BaseService):
-
     async def get_filtered_by_time(
-            self,
-            pagination: PaginationParams,
-            location: str | None,
-            title: str | None,
-            date_from: date,
-            date_to: date,
+        self,
+        pagination: PaginationParams,
+        location: str | None,
+        title: str | None,
+        date_from: date,
+        date_to: date,
     ) -> list[Hotel]:
         date_to_after_date_from(date_from, date_to)
         per_page = pagination.per_page or 5
