@@ -70,6 +70,8 @@ pyright:
   extends: .python
   stage: lint_format
   script:
+    # pyright запускает скачанный Node, которому нужна libatomic — в slim-образе её нет
+    - apt-get update && apt-get install -y --no-install-recommends libatomic1
     - uv run pyright
 
 
